@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>本土化翻译助手</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", sans-serif; margin: 0; background:#0b0c10; color:#eaf2f8; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 24px; }
+  h1 { margin: 0 0 16px; font-size: 24px; }
+  .card { background:#111319; border:1px solid #1e2230; border-radius:12px; padding:16px; margin-bottom:16px; }
+  textarea { width:100%; min-height:220px; resize:vertical; background:#0e1118; color:#eaf2f8; border:1px solid #23283b; border-radius:8px; padding:12px; font-size:14px; line-height:1.5; }
+  select, button { height:40px; border-radius:8px; border:1px solid #23283b; background:#0e1118; color:#eaf2f8; padding:0 12px; }
+  button { background:#5a67ff; border:none; cursor:pointer; font-weight:600; }
+  button:disabled { opacity:0.6; cursor:not-allowed; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .row > * { flex: none; }
+  .grow { flex: 1 1 auto; }
+  pre { background:#0e1118; border:1px solid #23283b; border-radius:8px; padding:12px; overflow:auto; }
+  .hint { color:#9aa4b2; font-size:12px; margin-top:8px; }
+  .langs { display:flex; gap:8px; flex-wrap:wrap; }
+  .pill { padding:4px 8px; border:1px solid #23283b; border-radius:999px; font-size:12px; color:#b6c0cf; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>本土化翻译助手（词汇列表 → 目标语言列表）</h1>
+
+    <div class="card">
+      <div class="row">
+        <div class="grow">
+          <label>词汇列表（每行一个，建议用中文作为源语言）</label>
+        </div>
+        <div>
+          <label for="lang">目标语言</label>
+        </div>
+        <select id="lang">
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+          <option value="de">Deutsch</option>
+          <option value="es">Español</option>
+          <option value="fr">Français</option>
+          <option value="pt">Português</option>
+          <option value="zh-CN" selected>简体中文</option>
+          <option value="zh-TW">繁體中文</option>
+          <option value="vi">Tiếng Việt</option>
+        </select>
+      </div>
+
+      <textarea id="input" placeholder="示例：
+AI 人声分离
+磁带噪声
+音量漂移
+音高摇摆（Wow）
+颤音（Flutter）
+离线渲染导出"></textarea>
+
+      <div class="row" style="margin-top:12px;">
+        <button id="btn">开始本土化翻译</button>
+        <button id="copy" title="复制结果" disabled>复制结果</button>
+        <span id="status" class="hint"></span>
+      </div>
+
+      <div class="hint">
+        支持语言：
+        <span class="langs">
+          <span class="pill">English</span><span class="pill">日本語</span><span class="pill">한국어</span>
+          <span class="pill">Deutsch</span><span class="pill">Español</span><span class="pill">Français</span>
+          <span class="pill">Português</span><span class="pill">简体中文</span><span class="pill">繁體中文</span><span class="pill">Tiếng Việt</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="grow"><strong>输出（目标语言词汇列表）</strong></div>
+        <label><input type="checkbox" id="wantJson" /> JSON 显示</label>
+      </div>
+      <pre id="out"></pre>
+    </div>
+  </div>
+
+<script>
+  // 将此替换为你的 Worker 地址，如：https://your-worker.example.workers.dev
+  const API_BASE = "https://localize-proxy.ne0s0u1-pd.workers.devL"; 
+  const $ = sel => document.querySelector(sel);
+  const btn = $("#btn");
+  const copyBtn = $("#copy");
+  const input = $("#input");
+  const out = $("#out");
+  const langSel = $("#lang");
+  const status = $("#status");
+  const wantJson = $("#wantJson");
+
+  function parseLines(txt) {
+    return txt.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  }
+
+  async function translate() {
+    const terms = parseLines(input.value);
+    const targetLang = langSel.value;
+    if (!terms.length) {
+      alert("请先输入至少一个词汇（每行一个）");
+      return;
+    }
+    btn.disabled = true; copyBtn.disabled = true;
+    status.textContent = "翻译中…";
+    out.textContent = "";
+
+    try {
+      const r = await fetch(`${API_BASE}/api/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ terms, targetLang })
+      });
+      if (!r.ok) throw new Error("请求失败：" + r.status);
+      const data = await r.json();
+      const map = data?.translations || {};
+      if (wantJson.checked) {
+        out.textContent = JSON.stringify(map, null, 2);
+      } else {
+        // 只输出结果列表（与输入顺序一致）
+        const list = terms.map(t => map[t] || "").filter(Boolean);
+        out.textContent = list.join("\n");
+      }
+      copyBtn.disabled = false;
+      status.textContent = "完成";
+    } catch (e) {
+      console.error(e);
+      status.textContent = "出错：" + e.message;
+      out.textContent = "⚠️ " + (e?.message || "翻译失败");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  btn.addEventListener("click", translate);
+  copyBtn.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(out.textContent);
+    status.textContent = "已复制到剪贴板";
+  });
+</script>
+</body>
+</html>

@@ -2,146 +2,270 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>多语言本土化翻译</title>
+<title>多语言本土化翻译（表格预览）</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:,">
 <style>
   :root{
-    --brand:#2b6cb0;
-    --brand-dark:#1a4f80;
-    --bg:#f0f2f5;
+    --brand:#2b6cb0; --brand-dark:#1a4f80; --bg:#f0f2f5;
+    --ok:#10b981; --warn:#ef4444;
   }
   body{
     font-family:"Segoe UI", Arial, sans-serif;
-    background:var(--bg);
+    background:var(--bg); margin:0; padding:28px; color:#333;
     display:flex; justify-content:center; align-items:flex-start;
-    padding:30px; color:#333;
   }
   .container{
-    background:#fff; border-radius:12px; padding:25px;
-    max-width:680px; width:100%;
-    box-shadow:0 6px 20px rgba(0,0,0,.1);
+    background:#fff; border-radius:14px; padding:22px; width:100%; max-width:980px;
+    box-shadow:0 6px 20px rgba(0,0,0,.08);
   }
-  h1{ text-align:center; font-size:1.8em; margin-bottom:18px; color:var(--brand); }
-  label{ font-weight:700; display:block; margin-top:15px; }
-  input[disabled]{ background:#eee; border:1px solid #ccc; padding:8px; border-radius:6px; width:150px; }
+  h1{ margin:0 0 12px; text-align:center; color:var(--brand); font-size:1.8rem; }
+  .sub{ text-align:center; color:#666; margin-bottom:18px; }
+  label{ font-weight:700; display:block; margin-top:12px; }
+  .row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   textarea{
-    width:100%; height:140px; padding:10px; border-radius:8px; border:1px solid #ccc;
-    margin-top:6px; resize:vertical; font-size:14px;
+    width:100%; min-height:140px; padding:12px; border:1px solid #d1d5db; border-radius:10px; resize:vertical; font-size:14px;
   }
-  select, button{
-    padding:10px; border-radius:8px; border:1px solid #ccc; font-size:14px; margin-top:6px;
-  }
+  .muted{ color:#666; }
   .btn{
-    border:none; color:#fff; background:var(--brand); cursor:pointer; font-weight:700;
-    transition:background .15s, transform .05s; width:100%;
+    border:none; border-radius:10px; padding:11px 14px; font-weight:700; cursor:pointer; color:#fff;
+    background:var(--brand); transition:background .15s, transform .05s;
   }
   .btn:hover{ background:var(--brand-dark); }
-  .btn:active{ transform:translateY(1px); }
-  .actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
-  .output{
-    margin-top:16px; padding:14px; background:#f9f9f9; border:1px solid #ddd; border-radius:8px;
-    min-height:90px; white-space:pre-line; font-size:14px;
+  .btn-ghost{ background:#e5e7eb; color:#111; }
+  .btn-ok{ background:var(--ok); }
+  .actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+  .status{ margin-top:8px; font-size:14px; }
+  .status.ok{ color:var(--ok); }
+  .status.warn{ color:var(--warn); }
+  .table-wrap{
+    margin-top:16px; overflow:auto; border:1px solid #e5e7eb; border-radius:10px;
   }
+  table{ width:100%; border-collapse:separate; border-spacing:0; }
+  thead th{
+    position:sticky; top:0; background:#f8fafc; z-index:1; 
+    border-bottom:1px solid #e5e7eb; padding:10px; font-weight:800; text-transform:uppercase; font-size:13px;
+    letter-spacing:0.02em;
+  }
+  tbody td{
+    padding:10px; border-bottom:1px solid #f1f5f9; vertical-align:top; font-size:14px;
+  }
+  tbody tr:nth-child(odd){ background:#fcfcfd; }
+  .missing{ background:#fee2e2; } /* 空单元格高亮 */
+  .right-tools{ display:flex; gap:10px; justify-content:flex-end; }
   .toast{
     position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
     background:#111; color:#fff; padding:10px 14px; border-radius:8px; opacity:0;
     transition:opacity .2s, transform .2s; pointer-events:none; font-size:14px;
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+  .hint{ font-size:12px; color:#6b7280; margin-top:6px; }
 </style>
 </head>
 <body>
 
 <div class="container">
   <h1>🌏 多语言本土化翻译</h1>
+  <div class="sub">输入多行英文（每行一个），后端返回 TSV（表头：zh/ja/de/pt/es/fr/ko/tw/vi），前端渲染表格并自检。</div>
 
-  <label>源语言：</label>
-  <input type="text" value="英语" disabled>
-
-  <label>输入要翻译的词汇（英文，每行一个）：</label>
-  <textarea id="sourceText" placeholder="在此输入英文词汇或短语"></textarea>
-
-  <label>选择目标语言：</label>
-  <select id="lang">
-    <option value="英语">英语</option>
-    <option value="日语">日语</option>
-    <option value="韩语">韩语</option>
-    <option value="德语">德语</option>
-    <option value="西班牙语">西班牙语</option>
-    <option value="法语">法语</option>
-    <option value="葡萄牙语">葡萄牙语</option>
-    <option value="简体中文" selected>简体中文</option>
-    <option value="繁体中文">繁体中文</option>
-    <option value="越南语">越南语</option>
-  </select>
-
-  <div class="actions">
-    <button id="translateBtn" class="btn">🚀 翻译</button>
-    <button id="copyBtn" class="btn" style="background:#10b981">📋 复制结果</button>
+  <label>源语言（固定）：</label>
+  <div class="row">
+    <input type="text" value="英语" disabled style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:10px;padding:10px;">
+    <div class="muted" style="display:flex;align-items:center;">表头固定：zh / ja / de / pt / es / fr / ko / tw / vi</div>
   </div>
 
-  <div class="output" id="output">翻译结果将在这里显示</div>
+  <label>输入要翻译的词汇（英文，每行一个）：</label>
+  <textarea id="sourceText" placeholder="示例：&#10;AI Stem Splitter&#10;Free Key and BPM Finder | Find Song Key &amp; BPM Online&#10;AUDIO-ZU-MIDI &lt;br&gt;&lt;/br&gt; Convert"></textarea>
+
+  <div class="actions">
+    <button id="runBtn" class="btn">🚀 翻译并生成表格</button>
+    <div class="right-tools" style="margin-left:auto;">
+      <button id="copyBtn" class="btn btn-ok">📋 复制 TSV</button>
+      <button id="dlBtn" class="btn btn-ghost">⬇️ 下载 TSV</button>
+    </div>
+  </div>
+  <div id="status" class="status muted">待翻译</div>
+
+  <div class="table-wrap" id="tableWrap" style="display:none;">
+    <table id="resultTable">
+      <thead><tr></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="hint">注：表格中空白单元格会标红，表示可能漏译；HTML 标签（如 &lt;br&gt;）与占位符会原样保留并按原位渲染。</div>
 </div>
 
-<div class="toast" id="toast">已复制到剪贴板</div>
+<div class="toast" id="toast">已复制</div>
 
 <script>
-const API = "https://localize-proxy.ne0s0u1-pd.workers.dev";
+const API = "https://localize-proxy-staging.ne0s0u1-pd.workers.dev"; // ← 换成你的 Worker 地址
+const EXPECT_HEADER = ["zh","ja","de","pt","es","fr","ko","tw","vi"];
+
+const el = {
+  src: document.getElementById("sourceText"),
+  status: document.getElementById("status"),
+  tableWrap: document.getElementById("tableWrap"),
+  table: document.getElementById("resultTable"),
+  theadRow: document.querySelector("#resultTable thead tr"),
+  tbody: document.querySelector("#resultTable tbody"),
+  runBtn: document.getElementById("runBtn"),
+  copyBtn: document.getElementById("copyBtn"),
+  dlBtn: document.getElementById("dlBtn"),
+  toast: document.getElementById("toast"),
+};
 
 function showToast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(()=> t.classList.remove('show'), 1600);
+  el.toast.textContent = msg;
+  el.toast.classList.add("show");
+  setTimeout(()=> el.toast.classList.remove("show"), 1600);
 }
 
-document.getElementById("translateBtn").addEventListener("click", async () => {
-  const text = document.getElementById("sourceText").value.trim();
-  const targetLang = document.getElementById("lang").value;
+// 轻量清洗：移除 script 标签，保留其他标签（如 <br>）
+function sanitizeKeepBr(html){
+  return html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "");
+}
 
-  if (!text) { alert("请输入英文词汇或短语"); return; }
+function splitLines(s){
+  return s.split(/\r?\n/).filter(line => line.trim().length>0);
+}
 
-  const out = document.getElementById("output");
-  out.textContent = "翻译中...";
+function parseTSV(tsv){
+  // 去掉包裹代码围栏和首尾空白
+  tsv = tsv.replace(/^```[\s\S]*?\n/,"").replace(/```$/,"").trim();
+  const lines = tsv.split(/\r?\n/);
+  const rows = lines.map(line => line.split("\t"));
+  return rows;
+}
+
+function renderTable(rows, inputLineCount){
+  // rows[0] 应为表头
+  const header = rows[0] || [];
+  // 校正：若表头不匹配，则改用 EXPECT_HEADER 展示
+  const hdr = (header.join("\t") === EXPECT_HEADER.join("\t")) ? header : EXPECT_HEADER;
+
+  // 渲染表头
+  el.theadRow.innerHTML = "";
+  hdr.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    el.theadRow.appendChild(th);
+  });
+
+  // 渲染数据行
+  el.tbody.innerHTML = "";
+  const dataRows = rows.slice(1);
+  const missingCells = { count: 0 };
+  dataRows.forEach((cols, rIdx) => {
+    const tr = document.createElement("tr");
+    // 如果模型没按 9 列输出，尽量补齐
+    for (let i=0;i<hdr.length;i++){
+      const td = document.createElement("td");
+      const raw = (cols[i] ?? "").trim();
+      if (!raw){
+        td.classList.add("missing");
+        missingCells.count++;
+      }
+      // 保留 <br> 与占位符等标签（移除 script）
+      td.innerHTML = sanitizeKeepBr(raw);
+      tr.appendChild(td);
+    }
+    el.tbody.appendChild(tr);
+  });
+
+  // 显示容器
+  el.tableWrap.style.display = "block";
+
+  // 自检：行数
+  const outLines = dataRows.length;
+  if (outLines !== inputLineCount){
+    el.status.className = "status warn";
+    el.status.textContent = `⚠️ 行数不一致：输入 ${inputLineCount} 行，输出 ${outLines} 行；空单元格 ${missingCells.count} 个。`;
+  } else if (missingCells.count > 0){
+    el.status.className = "status warn";
+    el.status.textContent = `⚠️ 检测到 ${missingCells.count} 个空单元格（可能漏译）。`;
+  } else {
+    el.status.className = "status ok";
+    el.status.textContent = "✅ 翻译完成，行数匹配，无空单元格。";
+  }
+}
+
+async function translateAndRender(){
+  const input = el.src.value.trim();
+  const inputLines = splitLines(el.src.value);
+  if (!input){
+    alert("请输入英文（每行一个短语/句子）");
+    return;
+  }
+
+  el.status.className = "status";
+  el.status.textContent = "翻译中…";
+  el.tableWrap.style.display = "none";
 
   try {
     const res = await fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, targetLang })
+      // 服务端不再需要 targetLang：一次性返回 9 种语言的 TSV
+      body: JSON.stringify({ text: input })
     });
-
     const data = await res.json();
-    if (data.result) {
-      out.textContent = data.result;
-    } else {
-      out.textContent = "翻译失败";
+    const tsv = (data && (data.table || data.result || "")) + "";
+    if (!tsv.trim()){
+      el.status.className = "status warn";
+      el.status.textContent = "⚠️ 未获得 TSV 内容。";
+      return;
     }
-  } catch (err) {
-    out.textContent = "请求失败：" + err.message;
+    // 渲染表格
+    const rows = parseTSV(tsv);
+    renderTable(rows, inputLines.length);
+    // 缓存 TSV 供复制/下载
+    el.tableWrap.dataset.tsv = tsv;
+  } catch (e){
+    el.status.className = "status warn";
+    el.status.textContent = "请求失败：" + e.message;
   }
+}
+
+async function robustCopy(text) {
+  if (!window.isSecureContext) throw new Error("非 HTTPS 安全环境，无法写入剪贴板");
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    try {
+      if (navigator.permissions && navigator.permissions.query){
+        await navigator.permissions.query({ name: "clipboard-write" });
+      }
+    } catch(_) {}
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly","");
+  ta.style.position="absolute"; ta.style.left="-9999px";
+  document.body.appendChild(ta);
+  ta.select(); ta.setSelectionRange(0, ta.value.length);
+  const ok = document.execCommand("copy");
+  document.body.removeChild(ta);
+  if (!ok) throw new Error("复制失败");
+}
+
+el.runBtn.addEventListener("click", translateAndRender);
+
+el.copyBtn.addEventListener("click", async ()=>{
+  const tsv = el.tableWrap.dataset.tsv || "";
+  if (!tsv.trim()){ showToast("没有可复制的 TSV"); return; }
+  try{ await robustCopy(tsv); showToast("已复制 TSV"); }
+  catch(e){ showToast("复制失败"); }
 });
 
-document.getElementById("copyBtn").addEventListener("click", async () => {
-  const txt = document.getElementById("output").textContent.trim();
-  if (!txt || txt === "翻译结果将在这里显示" || txt === "翻译中...") {
-    showToast("没有可复制的内容");
-    return;
-    }
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(txt);
-    } else {
-      // 兼容回退
-      const ta = document.createElement("textarea");
-      ta.value = txt; document.body.appendChild(ta);
-      ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
-    }
-    showToast("已复制到剪贴板");
-  } catch (e) {
-    showToast("复制失败");
-  }
+el.dlBtn.addEventListener("click", ()=>{
+  const tsv = el.tableWrap.dataset.tsv || "";
+  if (!tsv.trim()){ showToast("没有可下载的 TSV"); return; }
+  const blob = new Blob([tsv], { type:"text/tab-separated-values;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "translations.tsv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 });
 </script>
 

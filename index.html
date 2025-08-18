@@ -51,7 +51,7 @@
     padding:10px; border-bottom:1px solid #f1f5f9; vertical-align:top; font-size:14px;
   }
   tbody tr:nth-child(odd){ background:#fcfcfd; }
-  .missing{ background:#fee2e2; } /* 空单元格高亮 */
+  .missing{ background:#fee2e2; }
   .right-tools{ display:flex; gap:10px; justify-content:flex-end; }
   .toast{
     position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
@@ -60,22 +60,69 @@
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
   .hint{ font-size:12px; color:#6b7280; margin-top:6px; }
+
+  /* 拖拽表头样式 */
+  .header-drag-list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0;
+  }
+  .header-drag-list li {
+    background: #f0f3f7;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    cursor: grab;
+    user-select: none;
+    transition: background 0.2s;
+  }
+  .header-drag-list li:hover {
+    background: #e2e6eb;
+  }
+  .header-drag-list li.dragging {
+    opacity: 0.5;
+    background: #cfd6de;
+  }
 </style>
 </head>
 <body>
 
 <div class="container">
   <h1>🌏 多语言本土化翻译</h1>
-  <div class="sub">输入多行英文（每行一个），后端返回 TSV（表头：zh/ja/de/pt/es/fr/ko/tw/vi），前端渲染表格并自检。</div>
+  <div class="sub">输入多行英文（每行一个），后端返回 TSV，前端渲染表格并自检。</div>
 
   <label>源语言（固定）：</label>
   <div class="row">
     <input type="text" value="英语" disabled style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:10px;padding:10px;">
-    <div class="muted" style="display:flex;align-items:center;">表头固定：zh / ja / de / pt / es / fr / ko / tw / vi</div>
+    <div class="muted" style="display:flex;align-items:center;"></div>
   </div>
 
-  <label>输入要翻译的词汇（英文，每行一个）：</label>
+  <label>输入要翻译的词汇（英文，每行一个，一次不要超出50个，这星期会优化）：</label>
   <textarea id="sourceText" placeholder="示例：&#10;AI Stem Splitter&#10;Free Key and BPM Finder | Find Song Key &amp; BPM Online&#10;AUDIO-ZU-MIDI &lt;br&gt;&lt;/br&gt; Convert"></textarea>
+
+  <label>最佳本土化翻译示例（可选，多行）：</label>
+  <textarea id="bestExamples" placeholder="示例格式：&#10;AI Stem Splitter => AI 音轨分离器&#10;Free Key and BPM Finder => 免费调性与BPM检测工具"></textarea>
+  <div class="hint">这些示例会作为参考拼接到 AI 提示中，帮助生成更符合你要求的翻译。</div>
+
+
+  <!-- 拖拽表头顺序 -->
+  <div class="header-drag-container">
+    <label>拖动调整语言顺序：</label>
+    <ul id="headerList" class="header-drag-list">
+      <li draggable="true" data-code="zh">zh</li>
+      <li draggable="true" data-code="ja">ja</li>
+      <li draggable="true" data-code="de">de</li>
+      <li draggable="true" data-code="pt">pt</li>
+      <li draggable="true" data-code="es">es</li>
+      <li draggable="true" data-code="fr">fr</li>
+      <li draggable="true" data-code="ko">ko</li>
+      <li draggable="true" data-code="tw">tw</li>
+      <li draggable="true" data-code="vi">vi</li>
+    </ul>
+  </div>
 
   <div class="actions">
     <button id="runBtn" class="btn">🚀 翻译并生成表格</button>
@@ -99,9 +146,18 @@
 <div class="toast" id="toast">已复制</div>
 
 <script>
-const API = "https://localize-proxy-staging.ne0s0u1-pd.workers.dev"; // ← 换成你的 Worker 地址
+const API = "https://localize-proxy.ne0s0u1-pd.workers.dev";
 const EXPECT_HEADER = ["zh","ja","de","pt","es","fr","ko","tw","vi"];
 
+const sleep = (ms)=>new Promise(r=>setTimeout(r, ms));
+
+// 从批大小输入框取值（没有就默认 50）
+function getBatchSize(){
+  const elInput = document.getElementById("batchSize");
+  const v = elInput ? parseInt(elInput.value,10) : 50;
+  return Number.isFinite(v) && v > 0 ? v : 50;
+}
+  
 const el = {
   src: document.getElementById("sourceText"),
   status: document.getElementById("status"),
@@ -115,13 +171,36 @@ const el = {
   toast: document.getElementById("toast"),
 };
 
+// 拖拽逻辑
+const list = document.getElementById('headerList');
+let dragItem = null;
+list.addEventListener('dragstart', e => {
+  dragItem = e.target;
+  e.target.classList.add('dragging');
+});
+list.addEventListener('dragend', e => {
+  e.target.classList.remove('dragging');
+  dragItem = null;
+});
+list.addEventListener('dragover', e => {
+  e.preventDefault();
+  const target = e.target.closest('li');
+  if (target && target !== dragItem) {
+    const rect = target.getBoundingClientRect();
+    const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+    list.insertBefore(dragItem, next ? target.nextSibling : target);
+  }
+});
+function getHeaderOrder() {
+  return Array.from(list.querySelectorAll('li')).map(li => li.dataset.code);
+}
+
 function showToast(msg){
   el.toast.textContent = msg;
   el.toast.classList.add("show");
   setTimeout(()=> el.toast.classList.remove("show"), 1600);
 }
 
-// 轻量清洗：移除 script 标签，保留其他标签（如 <br>）
 function sanitizeKeepBr(html){
   return html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "");
 }
@@ -131,7 +210,6 @@ function splitLines(s){
 }
 
 function parseTSV(tsv){
-  // 去掉包裹代码围栏和首尾空白
   tsv = tsv.replace(/^```[\s\S]*?\n/,"").replace(/```$/,"").trim();
   const lines = tsv.split(/\r?\n/);
   const rows = lines.map(line => line.split("\t"));
@@ -139,14 +217,12 @@ function parseTSV(tsv){
 }
 
 function renderTable(rows, inputLineCount){
-  // rows[0] 应为表头
+  // 第一行就是后端返回的动态表头
   const header = rows[0] || [];
-  // 校正：若表头不匹配，则改用 EXPECT_HEADER 展示
-  const hdr = (header.join("\t") === EXPECT_HEADER.join("\t")) ? header : EXPECT_HEADER;
 
   // 渲染表头
   el.theadRow.innerHTML = "";
-  hdr.forEach(h => {
+  header.forEach(h => {
     const th = document.createElement("th");
     th.textContent = h;
     el.theadRow.appendChild(th);
@@ -156,17 +232,16 @@ function renderTable(rows, inputLineCount){
   el.tbody.innerHTML = "";
   const dataRows = rows.slice(1);
   const missingCells = { count: 0 };
-  dataRows.forEach((cols, rIdx) => {
+
+  dataRows.forEach((cols) => {
     const tr = document.createElement("tr");
-    // 如果模型没按 9 列输出，尽量补齐
-    for (let i=0;i<hdr.length;i++){
+    for (let i = 0; i < header.length; i++) {
       const td = document.createElement("td");
       const raw = (cols[i] ?? "").trim();
-      if (!raw){
+      if (!raw) {
         td.classList.add("missing");
         missingCells.count++;
       }
-      // 保留 <br> 与占位符等标签（移除 script）
       td.innerHTML = sanitizeKeepBr(raw);
       tr.appendChild(td);
     }
@@ -178,10 +253,10 @@ function renderTable(rows, inputLineCount){
 
   // 自检：行数
   const outLines = dataRows.length;
-  if (outLines !== inputLineCount){
+  if (outLines !== inputLineCount) {
     el.status.className = "status warn";
     el.status.textContent = `⚠️ 行数不一致：输入 ${inputLineCount} 行，输出 ${outLines} 行；空单元格 ${missingCells.count} 个。`;
-  } else if (missingCells.count > 0){
+  } else if (missingCells.count > 0) {
     el.status.className = "status warn";
     el.status.textContent = `⚠️ 检测到 ${missingCells.count} 个空单元格（可能漏译）。`;
   } else {
@@ -190,42 +265,100 @@ function renderTable(rows, inputLineCount){
   }
 }
 
+
 async function translateAndRender(){
   const input = el.src.value.trim();
+  const examplesEl = document.getElementById("bestExamples");
+  const examples = examplesEl ? examplesEl.value.trim() : "";
   const inputLines = splitLines(el.src.value);
+
   if (!input){
     alert("请输入英文（每行一个短语/句子）");
     return;
   }
 
+  const BATCH_SIZE = getBatchSize();
   el.status.className = "status";
-  el.status.textContent = "翻译中…";
+  el.status.textContent = "准备分批…";
   el.tableWrap.style.display = "none";
 
   try {
-    const res = await fetch(API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // 服务端不再需要 targetLang：一次性返回 9 种语言的 TSV
-      body: JSON.stringify({ text: input })
-    });
-    const data = await res.json();
-    const tsv = (data && (data.table || data.result || "")) + "";
-    if (!tsv.trim()){
-      el.status.className = "status warn";
-      el.status.textContent = "⚠️ 未获得 TSV 内容。";
-      return;
+    const total = inputLines.length;
+    let offset = 0;
+    let firstBatch = true;
+    let combinedTSV = "";
+
+    const totalBatches = Math.ceil(total / BATCH_SIZE);
+
+    for (let batchIndex = 1; batchIndex <= totalBatches; batchIndex++) {
+      // 进度提示
+      el.status.textContent = `翻译中… 第 ${batchIndex} / ${totalBatches} 批（${BATCH_SIZE} 行/批）`;
+
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: input,                     // 整体原文；后端用 offset/batchSize 切本批
+          examples,                        // 你的最佳本土化示例
+          headerOrder: getHeaderOrder(),   // 拖拽后的表头顺序
+          offset,                          // 本批起始行
+          batchSize: BATCH_SIZE            // 本批大小
+        })
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(()=> "");
+        throw new Error(`HTTP ${res.status}: ${errText || "请求失败"}`);
+      }
+
+      const data = await res.json();
+
+      // 429/限流容错：后端可能返回 retryAfterMs
+      if (data.error) {
+        if (data.retryAfterMs) {
+          const wait = Math.max(1200, data.retryAfterMs);
+          el.status.textContent = `触发限流，${Math.ceil(wait/1000)} 秒后继续…`;
+          await sleep(wait);
+          batchIndex--; // 重试当前批
+          continue;
+        }
+        throw new Error(data.error?.message || "后端错误");
+      }
+
+      // 首批包含表头；后续批只有数据行
+      const tsvPiece = (data.table || "").trim();
+      if (!tsvPiece) throw new Error("后端返回空的 TSV 片段");
+
+      if (firstBatch) {
+        combinedTSV = tsvPiece;
+        firstBatch = false;
+      } else {
+        combinedTSV += "\n" + tsvPiece;
+      }
+
+      // 推进 offset
+      const meta = data.meta || {};
+      if (!meta.hasMore) break;
+      offset = meta.nextOffset;
+
+      // 轻微节流，避免免费额度被限
+      await sleep(1200);
     }
-    // 渲染表格
-    const rows = parseTSV(tsv);
+
+    // 渲染整表
+    const rows = parseTSV(combinedTSV);
     renderTable(rows, inputLines.length);
-    // 缓存 TSV 供复制/下载
-    el.tableWrap.dataset.tsv = tsv;
+    el.tableWrap.dataset.tsv = combinedTSV;
+
+    el.status.className = "status ok";
+    el.status.textContent = "✅ 翻译完成";
   } catch (e){
     el.status.className = "status warn";
     el.status.textContent = "请求失败：" + e.message;
   }
 }
+
+
 
 async function robustCopy(text) {
   if (!window.isSecureContext) throw new Error("非 HTTPS 安全环境，无法写入剪贴板");
@@ -249,14 +382,12 @@ async function robustCopy(text) {
 }
 
 el.runBtn.addEventListener("click", translateAndRender);
-
 el.copyBtn.addEventListener("click", async ()=>{
   const tsv = el.tableWrap.dataset.tsv || "";
   if (!tsv.trim()){ showToast("没有可复制的 TSV"); return; }
   try{ await robustCopy(tsv); showToast("已复制 TSV"); }
   catch(e){ showToast("复制失败"); }
 });
-
 el.dlBtn.addEventListener("click", ()=>{
   const tsv = el.tableWrap.dataset.tsv || "";
   if (!tsv.trim()){ showToast("没有可下载的 TSV"); return; }
@@ -271,3 +402,5 @@ el.dlBtn.addEventListener("click", ()=>{
 
 </body>
 </html>
+
+
